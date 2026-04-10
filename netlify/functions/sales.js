@@ -1,9 +1,9 @@
 exports.handler = async function(event, context) {
-  const stores = [
-    { id: 'kinky',      name: 'KINKY FLOWER STAND', emoji: '🌸', token: process.env.TOKEN_KINKY,      locationId: process.env.LOCID_KINKY || 'LX79VENYCHVHP' },
-    { id: 'livibossa',  name: 'LiviBossa',           emoji: '🎵', token: process.env.TOKEN_LIVIBOSSA,  locationId: process.env.LOCID_LIVIBOSSA },
-    { id: 'koukyo',     name: '香酵食堂',             emoji: '🍜', token: process.env.TOKEN_KOUKYO,     locationId: process.env.LOCID_KOUKYO },
-    { id: 'shishitora', name: '獅子虎',              emoji: '🦁', token: process.env.TOKEN_SHISHITORA, locationId: process.env.LOCID_SHISHITORA },
+const stores = [
+    { id: 'koukyo',     name: '香酵味食堂',            emoji: '', token: process.env.TOKEN_KOUKYO,     locationId: process.env.LOCID_KOUKYO },
+    { id: 'shishitora', name: '獅子虎',               emoji: '', token: process.env.TOKEN_SHISHITORA, locationId: process.env.LOCID_SHISHITORA },
+    { id: 'livibossa',  name: 'LiviBossa',            emoji: '', token: process.env.TOKEN_LIVIBOSSA,  locationId: process.env.LOCID_LIVIBOSSA },
+    { id: 'kinky',      name: 'KINKY FLOWER STAND',   emoji: '', token: process.env.TOKEN_KINKY,      locationId: process.env.LOCID_KINKY || 'LX79VENYCHVHP' },
   ];
 
   const now = new Date();
