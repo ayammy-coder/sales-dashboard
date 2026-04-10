@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>売上ダッシュボード</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f13; --card: #1a1a22; --card2: #22222e;
+    --accent: #7c6ff7; --green: #4ade80;
+    --text: #f0f0f5; --sub: #888899; --border: #2e2e3e; --radius: 16px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; min-height: 100vh; padding-bottom: 32px; }
+
+  .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 52px 20px 20px; text-align: center; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.04em; }
+  .header .date { font-size: 13px; color: var(--sub); margin-top: 4px; }
+  .header .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); margin-top: 8px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+  .summary-card { background: var(--card); border-radius: var(--radius); padding: 16px; border: 1px solid var(--border); }
+  .summary-card .label { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing:.08em; }
+  .summary-card .value { font-size: 24px; font-weight: 800; margin-top: 4px; }
+  .summary-card .value span { font-size: 13px; font-weight: 400; color: var(--sub); }
+
+  .section-title { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: .1em; padding: 0 16px 8px; }
+  .stores { padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  .store-card { background: var(--card); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); transition: transform .15s; }
+  .store-card:active { transform: scale(.98); }
+  .store-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 12px; border-bottom: 1px solid var(--border); }
+  .store-name-row { display: flex; align-items: center; gap: 10px; }
+  .store-emoji { font-size: 24px; }
+  .store-name { font-size: 15px; font-weight: 700; }
+  .store-status { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.25); }
+  .store-status.loading { background: rgba(124,111,247,.12); color: var(--accent); border-color: rgba(124,111,247,.25); }
+  .store-status.error { background: rgba(248,113,113,.12); color: #f87171; border-color: rgba(248,113,113,.25); }
+  .store-status.warn { background: rgba(251,191,36,.12); color: #fbbf24; border-color: rgba(251,191,36,.25); }
+
+  .store-body { padding: 16px; }
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .metric { text-align: center; }
+  .metric .m-label { font-size: 10px; color: var(--sub); margin-bottom: 4px; }
+  .metric .m-val { font-size: 17px; font-weight: 800; }
+  .metric .m-val.big { font-size: 20px; color: var(--accent); }
+  .metric .m-sub { font-size: 10px; color: var(--sub); }
+
+  .store-footer { padding: 10px 16px; background: var(--card2); display: flex; justify-content: space-between; align-items: center; }
+  .store-footer .updated { font-size: 11px; color: var(--sub); }
+  .mini-bar { display: flex; gap: 3px; align-items: flex-end; height: 24px; }
+  .mini-bar-item { width: 8px; border-radius: 2px 2px 0 0; background: var(--accent); opacity: .6; }
+
+  .fab { position: fixed; bottom: 28px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(124,111,247,.4); transition: transform .15s; font-size: 22px; }
+  .fab:active { transform: scale(.9); }
+  .fab.spinning svg { animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-state { text-align: center; padding: 40px 20px; color: var(--sub); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 売上ダッシュボード</h1>
+  <div class="date" id="hDate"></div>
+  <div class="status"><span class="dot"></span><span id="hStatus">読み込み中…</span></div>
+</div>
+
+<div class="summary">
+  <div class="summary-card">
+    <div class="label">本日合計</div>
+    <div class="value" id="totalSales">—<span> 円</span></div>
+  </div>
+  <div class="summary-card">
+    <div class="label">総件数</div>
+    <div class="value" id="totalOrders">—<span> 件</span></div>
+  </div>
+</div>
+
+<div class="section-title">店舗別リアルタイム</div>
+<div class="stores" id="storeList">
+  <div class="loading-state">データを読み込んでいます…</div>
+</div>
+
+<button class="fab" id="fab" onclick="refreshAll()">
+  <svg id="fabIcon" width="22" height="22" viewBox="0 0 24 24" fill="none"
+       stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="23 4 23 10 17 10"/>
+    <path d="M20.49 15a9 9 0 1 1-.27-4.27"/>
+  </svg>
+</button>
+
+<script>
+function formatDate() {
+  return new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
+}
+function formatTime(d) {
+  return new Date(d).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+}
+
+document.getElementById('hDate').textContent = formatDate();
+
+function renderMiniBar(storeId, hourly) {
+  const container = document.getElementById('bar_' + storeId);
+  if (!container) return;
+  const curHour = new Date().getHours();
+  const hours = Array.from({length: 8}, (_, i) => (curHour - 7 + i + 24) % 24);
+  const vals = hours.map(h => hourly[h] || 0);
+  const max = Math.max(...vals, 1);
+  container.innerHTML = '';
+  vals.forEach(v => {
+    const bar = document.createElement('div');
+    bar.className = 'mini-bar-item';
+    bar.style.height = Math.max(3, Math.round((v / max) * 24)) + 'px';
+    container.appendChild(bar);
+  });
+}
+
+function renderStores(stores) {
+  const container = document.getElementById('storeList');
+  container.innerHTML = '';
+  stores.forEach(store => {
+    const configured = !store.error || store.error !== 'not_configured';
+    const hasError = store.error && store.error !== 'not_configured';
+    const statusText = hasError ? 'エラー' : (store.error === 'not_configured' ? '未設定' : '● LIVE');
+    const statusClass = hasError ? 'error' : (store.error === 'not_configured' ? 'warn' : '');
+
+    const div = document.createElement('div');
+    div.className = 'store-card';
+    div.innerHTML = `
+      <div class="store-header">
+        <div class="store-name-row">
+          <span class="store-emoji">${store.emoji}</span>
+          <span class="store-name">${store.name}</span>
+        </div>
+        <span class="store-status ${statusClass}">${statusText}</span>
+      </div>
+      <div class="store-body">
+        <div class="metrics">
+          <div class="metric">
+            <div class="m-label">本日売上</div>
+            <div class="m-val big">${store.error ? '—' : store.total.toLocaleString('ja-JP')}</div>
+            <div class="m-sub">円</div>
+          </div>
+          <div class="metric">
+            <div class="m-label">件数</div>
+            <div class="m-val">${store.error ? '—' : store.count}</div>
+            <div class="m-sub">件</div>
+          </div>
+          <div class="metric">
+            <div class="m-label">客単価</div>
+            <div class="m-val">${store.error || store.count === 0 ? '—' : Math.round(store.total / store.count).toLocaleString('ja-JP')}</div>
+            <div class="m-sub">円</div>
+          </div>
+        </div>
+        ${hasError ? `<div style="font-size:11px;color:#f87171;margin-top:10px;text-align:center">${store.error}</div>` : ''}
+      </div>
+      <div class="store-footer">
+        <span class="updated" id="upd_${store.id}"></span>
+        <div class="mini-bar" id="bar_${store.id}"></div>
+      </div>
+    `;
+    container.appendChild(div);
+    if (!store.error) renderMiniBar(store.id, store.hourly);
+  });
+}
+
+async function refreshAll() {
+  const fab = document.getElementById('fab');
+  fab.classList.add('spinning');
+  document.getElementById('hStatus').textContent = '更新中…';
+
+  try {
+    const res = await fetch('/api/sales');
+    if (!res.ok) throw new Error('サーバーエラー ' + res.status);
+    const data = await res.json();
+
+    renderStores(data.stores);
+
+    const grandTotal = data.stores.reduce((s, x) => s + (x.total || 0), 0);
+    const grandOrders = data.stores.reduce((s, x) => s + (x.count || 0), 0);
+    document.getElementById('totalSales').innerHTML = grandTotal.toLocaleString('ja-JP') + '<span> 円</span>';
+    document.getElementById('totalOrders').innerHTML = grandOrders + '<span> 件</span>';
+
+    const t = formatTime(data.updatedAt);
+    document.getElementById('hStatus').textContent = '最終更新 ' + t;
+    data.stores.forEach(s => {
+      const el = document.getElementById('upd_' + s.id);
+      if (el) el.textContent = '更新 ' + t;
+    });
+  } catch(e) {
+    document.getElementById('hStatus').textContent = 'エラー: ' + e.message;
+  }
+
+  fab.classList.remove('spinning');
+}
+
+setInterval(refreshAll, 60000);
+refreshAll();
+</script>
+</body>
+</html>
