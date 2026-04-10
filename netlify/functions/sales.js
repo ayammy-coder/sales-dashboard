@@ -1,9 +1,9 @@
 exports.handler = async function(event, context) {
-const stores = [
-    { id: 'koukyo',     name: '香酵味食堂',            emoji: '', token: process.env.TOKEN_KOUKYO,     locationId: process.env.LOCID_KOUKYO },
-    { id: 'shishitora', name: '獅子虎',               emoji: '', token: process.env.TOKEN_SHISHITORA, locationId: process.env.LOCID_SHISHITORA },
-    { id: 'livibossa',  name: 'LiviBossa',            emoji: '', token: process.env.TOKEN_LIVIBOSSA,  locationId: process.env.LOCID_LIVIBOSSA },
-    { id: 'kinky',      name: 'KINKY FLOWER STAND',   emoji: '', token: process.env.TOKEN_KINKY,      locationId: process.env.LOCID_KINKY || 'LX79VENYCHVHP' },
+  const stores = [
+    { id: 'koukyo',     name: '香酵味食堂',           emoji: '', token: process.env.TOKEN_KOUKYO,     locationId: process.env.LOCID_KOUKYO },
+    { id: 'shishitora', name: '獅子虎',              emoji: '', token: process.env.TOKEN_SHISHITORA, locationId: process.env.LOCID_SHISHITORA },
+    { id: 'livibossa',  name: 'LiviBossa',           emoji: '', token: process.env.TOKEN_LIVIBOSSA,  locationId: process.env.LOCID_LIVIBOSSA },
+    { id: 'kinky',      name: 'KINKY FLOWER STAND',  emoji: '', token: process.env.TOKEN_KINKY,      locationId: process.env.LOCID_KINKY || 'LX79VENYCHVHP' },
   ];
 
   const now = new Date();
@@ -17,7 +17,7 @@ const stores = [
 
   const results = await Promise.all(stores.map(async store => {
     if (!store.token || !store.locationId) {
-      return { id: store.id, name: store.name, emoji: store.emoji, error: 'not_configured', total: 0, count: 0, hourly: {} };
+      return { id: store.id, name: store.name, emoji: store.emoji, error: 'not_configured', total: 0, count: 0, hourly: {}, recentOrders: [] };
     }
     try {
       const body = {
@@ -42,7 +42,7 @@ const stores = [
       });
       const data = await res.json();
       if (!res.ok) {
-        return { id: store.id, name: store.name, emoji: store.emoji, error: data.errors?.[0]?.detail || 'APIエラー ' + res.status, total: 0, count: 0, hourly: {} };
+        return { id: store.id, name: store.name, emoji: store.emoji, error: data.errors?.[0]?.detail || 'APIエラー ' + res.status, total: 0, count: 0, hourly: {}, recentOrders: [] };
       }
       const orders = data.orders || [];
       const total = orders.reduce((sum, o) => sum + (o.total_money?.amount || 0), 0);
@@ -53,9 +53,15 @@ const stores = [
         const h = (t.getUTCHours() + 9) % 24;
         hourly[h] = (hourly[h] || 0) + (o.total_money?.amount || 0);
       });
-      return { id: store.id, name: store.name, emoji: store.emoji, total, count, hourly };
+      const recentOrders = orders.slice(0, 20).map(o => ({
+        time: o.closed_at,
+        amount: o.total_money?.amount || 0,
+        method: o.tenders?.[0]?.type || '不明',
+        items: o.line_items?.map(li => li.name).join(', ') || ''
+      }));
+      return { id: store.id, name: store.name, emoji: store.emoji, total, count, hourly, recentOrders };
     } catch(e) {
-      return { id: store.id, name: store.name, emoji: store.emoji, error: e.message, total: 0, count: 0, hourly: {} };
+      return { id: store.id, name: store.name, emoji: store.emoji, error: e.message, total: 0, count: 0, hourly: {}, recentOrders: [] };
     }
   }));
 
