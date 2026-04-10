@@ -31,16 +31,17 @@
   .section-title { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: .1em; padding: 0 16px 8px; }
   .stores { padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
 
-  .store-card { background: var(--card); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); transition: transform .15s; }
-  .store-card:active { transform: scale(.98); }
+  .store-card { background: var(--card); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); cursor: pointer; }
+  .store-card:active { opacity: .9; }
   .store-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 12px; border-bottom: 1px solid var(--border); }
-  .store-name-row { display: flex; align-items: center; gap: 10px; }
-  .store-emoji { font-size: 24px; }
   .store-name { font-size: 15px; font-weight: 700; }
+  .store-right { display: flex; align-items: center; gap: 8px; }
   .store-status { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.25); }
   .store-status.loading { background: rgba(124,111,247,.12); color: var(--accent); border-color: rgba(124,111,247,.25); }
   .store-status.error { background: rgba(248,113,113,.12); color: #f87171; border-color: rgba(248,113,113,.25); }
   .store-status.warn { background: rgba(251,191,36,.12); color: #fbbf24; border-color: rgba(251,191,36,.25); }
+  .chevron { font-size: 12px; color: var(--sub); transition: transform .2s; }
+  .chevron.open { transform: rotate(180deg); }
 
   .store-body { padding: 16px; }
   .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -55,11 +56,24 @@
   .mini-bar { display: flex; gap: 3px; align-items: flex-end; height: 24px; }
   .mini-bar-item { width: 8px; border-radius: 2px 2px 0 0; background: var(--accent); opacity: .6; }
 
+  /* 取引詳細 */
+  .detail { display: none; border-top: 1px solid var(--border); }
+  .detail.open { display: block; }
+  .detail-header { padding: 10px 16px 6px; font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: .08em; }
+  .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-left { display: flex; flex-direction: column; gap: 2px; }
+  .detail-time { font-size: 12px; color: var(--sub); }
+  .detail-items { font-size: 12px; color: var(--text); }
+  .detail-right { display: flex; align-items: center; gap: 8px; }
+  .detail-amount { font-size: 14px; font-weight: 700; }
+  .detail-method { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: var(--card2); color: var(--sub); }
+  .detail-empty { padding: 16px; text-align: center; color: var(--sub); font-size: 13px; }
+
   .fab { position: fixed; bottom: 28px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(124,111,247,.4); transition: transform .15s; font-size: 22px; }
   .fab:active { transform: scale(.9); }
   .fab.spinning svg { animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-
   .loading-state { text-align: center; padding: 40px 20px; color: var(--sub); font-size: 14px; }
 </style>
 </head>
@@ -102,8 +116,18 @@ function formatDate() {
 function formatTime(d) {
   return new Date(d).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 }
+function methodLabel(m) {
+  return m === 'CASH' ? '現金' : m === 'CARD' ? 'カード' : m === 'WALLET' ? '電子マネー' : m;
+}
 
 document.getElementById('hDate').textContent = formatDate();
+
+function toggleDetail(storeId) {
+  const detail = document.getElementById('detail_' + storeId);
+  const chevron = document.getElementById('chev_' + storeId);
+  if (detail) detail.classList.toggle('open');
+  if (chevron) chevron.classList.toggle('open');
+}
 
 function renderMiniBar(storeId, hourly) {
   const container = document.getElementById('bar_' + storeId);
@@ -125,20 +149,35 @@ function renderStores(stores) {
   const container = document.getElementById('storeList');
   container.innerHTML = '';
   stores.forEach(store => {
-    const configured = !store.error || store.error !== 'not_configured';
     const hasError = store.error && store.error !== 'not_configured';
-    const statusText = hasError ? 'エラー' : (store.error === 'not_configured' ? '未設定' : '● LIVE');
-    const statusClass = hasError ? 'error' : (store.error === 'not_configured' ? 'warn' : '');
+    const notConfigured = store.error === 'not_configured';
+    const statusText = hasError ? 'エラー' : notConfigured ? '未設定' : '● LIVE';
+    const statusClass = hasError ? 'error' : notConfigured ? 'warn' : '';
+
+    const recentHTML = (store.recentOrders || []).length === 0
+      ? '<div class="detail-empty">本日の取引なし</div>'
+      : (store.recentOrders || []).map(o => `
+          <div class="detail-row">
+            <div class="detail-left">
+              <span class="detail-time">${formatTime(o.time)}</span>
+              <span class="detail-items">${o.items || '—'}</span>
+            </div>
+            <div class="detail-right">
+              <span class="detail-amount">¥${o.amount.toLocaleString('ja-JP')}</span>
+              <span class="detail-method">${methodLabel(o.method)}</span>
+            </div>
+          </div>`).join('');
 
     const div = document.createElement('div');
     div.className = 'store-card';
+    div.onclick = () => toggleDetail(store.id);
     div.innerHTML = `
       <div class="store-header">
-        <div class="store-name-row">
-          <span class="store-emoji">${store.emoji}</span>
-          <span class="store-name">${store.name}</span>
+        <span class="store-name">${store.name}</span>
+        <div class="store-right">
+          <span class="store-status ${statusClass}">${statusText}</span>
+          <span class="chevron" id="chev_${store.id}">▼</span>
         </div>
-        <span class="store-status ${statusClass}">${statusText}</span>
       </div>
       <div class="store-body">
         <div class="metrics">
@@ -164,6 +203,10 @@ function renderStores(stores) {
         <span class="updated" id="upd_${store.id}"></span>
         <div class="mini-bar" id="bar_${store.id}"></div>
       </div>
+      <div class="detail" id="detail_${store.id}">
+        <div class="detail-header">取引履歴（本日）</div>
+        ${recentHTML}
+      </div>
     `;
     container.appendChild(div);
     if (!store.error) renderMiniBar(store.id, store.hourly);
@@ -174,19 +217,15 @@ async function refreshAll() {
   const fab = document.getElementById('fab');
   fab.classList.add('spinning');
   document.getElementById('hStatus').textContent = '更新中…';
-
   try {
     const res = await fetch('/api/sales');
     if (!res.ok) throw new Error('サーバーエラー ' + res.status);
     const data = await res.json();
-
     renderStores(data.stores);
-
     const grandTotal = data.stores.reduce((s, x) => s + (x.total || 0), 0);
     const grandOrders = data.stores.reduce((s, x) => s + (x.count || 0), 0);
     document.getElementById('totalSales').innerHTML = grandTotal.toLocaleString('ja-JP') + '<span> 円</span>';
     document.getElementById('totalOrders').innerHTML = grandOrders + '<span> 件</span>';
-
     const t = formatTime(data.updatedAt);
     document.getElementById('hStatus').textContent = '最終更新 ' + t;
     data.stores.forEach(s => {
@@ -196,7 +235,6 @@ async function refreshAll() {
   } catch(e) {
     document.getElementById('hStatus').textContent = 'エラー: ' + e.message;
   }
-
   fab.classList.remove('spinning');
 }
 
