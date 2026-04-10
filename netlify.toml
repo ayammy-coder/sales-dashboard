@@ -3,3 +3,8 @@
 
 [build.environment]
   NODE_VERSION = "18"
+
+[[redirects]]
+  from = "/api/sales"
+  to = "/.netlify/functions/sales"
+  status = 200
